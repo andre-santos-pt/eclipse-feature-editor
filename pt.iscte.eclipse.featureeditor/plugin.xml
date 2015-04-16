@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="pt.iscte.eclipse.featureeditor.FeatureModelEditor"
+            default="false"
+            filenames="feature.xml"
+            icon="icons/feat_icon16.png"
+            id="org.eclipselabs.equinox.featuremodel.editor"
+            name="Feature model configurator">
+      </editor>
+   </extension>
+
+</plugin>
