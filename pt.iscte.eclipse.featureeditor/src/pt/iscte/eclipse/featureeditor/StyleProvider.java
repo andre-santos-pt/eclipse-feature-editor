@@ -29,7 +29,7 @@ class StyleProvider extends LabelProvider implements IEntityStyleProvider, IEnti
 		final Color BLACK = new Color(null, 0, 0, 0);
 		final Color WHITE = new Color(null, 255, 255, 255);
 		final Color ABSTRACT = new Color(null, 255, 0, 0);
-		final Color SELECTED = new Color(null, 200, 200, 200);
+		final Color SELECTED = new Color(null, 230, 230, 230);
 		final Color HIGHLIGHT = new Color(null, 0, 120, 230);
 	
 		
@@ -164,11 +164,11 @@ class StyleProvider extends LabelProvider implements IEntityStyleProvider, IEnti
 		public IFigure getFigure(Object element) {
 			final Feature feature = (Feature) element;
 			final RectangleFigure r = new RectangleFigure();
-			r.setSize(feature.isRoot() ? 150 : 100, feature.isRoot() ? 30 : 25);
+			r.setSize(feature.isRoot() ? 200 : 150, feature.isRoot() ? 30 : 25);
 			r.setLineWidth(feature.isRoot() ? 3 : 1);
 			
 			Label l = new Label(feature.getName());
-			l.setSize(feature.isRoot() ? 148: 98, feature.isRoot() ? 30 : 25);
+			l.setSize(feature.isRoot() ? 200: 150, feature.isRoot() ? 30 : 25);
 			l.setLocation(new Point(3, 1));
 			l.setBackgroundColor(ABSTRACT);			
 			l.setFont(feature.isAbstract() ? ITALIC_FONT : feature.isRoot() ? BOLD_FONT : NORMAL_FONT);

@@ -12,6 +12,7 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.core.resources,
  org.eclipse.ui.editors,
  org.eclipse.ui.ide,
- org.eclipse.pde.core;bundle-version="3.10.1"
+ org.eclipse.pde.core;bundle-version="3.10.1",
+ org.eclipselabs.guita.uitrace.swt;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.7
 Bundle-ActivationPolicy: lazy
