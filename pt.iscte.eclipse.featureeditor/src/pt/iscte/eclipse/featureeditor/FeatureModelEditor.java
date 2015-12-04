@@ -20,29 +20,17 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
-import org.eclipse.jface.viewers.CheckStateChangedEvent;
-import org.eclipse.jface.viewers.CheckboxTableViewer;
-import org.eclipse.jface.viewers.CheckboxTreeViewer;
-import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.DoubleClickEvent;
-import org.eclipse.jface.viewers.ICheckStateListener;
 import org.eclipse.jface.viewers.IDoubleClickListener;
-import org.eclipse.jface.viewers.ILabelProvider;
-import org.eclipse.jface.viewers.ILabelProviderListener;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
-import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
 import org.eclipse.jface.viewers.StructuredSelection;
-import org.eclipse.jface.viewers.TableViewerColumn;
-import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.pde.core.target.NameVersionDescriptor;
 import org.eclipse.pde.core.target.TargetFeature;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -53,7 +41,6 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
-import org.eclipse.swt.widgets.TableColumn;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
@@ -69,22 +56,28 @@ import org.eclipse.zest.layouts.LayoutStyles;
 import org.eclipse.zest.layouts.algorithms.RadialLayoutAlgorithm;
 import org.osgi.framework.Bundle;
 
+import pt.iscte.eclipse.featureeditor.PluginList.SelectionListener;
+import pt.iscte.eclipse.featureeditor.model.Feature;
+import pt.iscte.eclipse.featureeditor.model.FeatureSelection;
+import pt.iscte.eclipse.featureeditor.model.FeatureSet;
+
 
 public class FeatureModelEditor extends MultiPageEditorPart {
 	private GraphViewer viewer;
 	private String rootFeatureId;
 	private FeatureSet set;
-	
+	private FeatureSelection selection;
+
 	private TargetFeature featureXml;
-	
+
 	private boolean dirty;
 	private org.eclipse.swt.widgets.List excludesList;
-	private CheckboxTableViewer pluginTable;
-	private Label totalLabel;
-	private Label featLabel;
-	private Label featAbsLabel;
-	private Label depthLabel;
 
+	private int pageIndex = 0;
+	private PluginList pluginList;
+	private StyleProvider styleProvider;
+
+	// runs first when editor is created
 	@Override
 	public void init(IEditorSite site, IEditorInput input)
 			throws PartInitException {
@@ -100,22 +93,15 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 		} catch (CoreException e) {
 			e.printStackTrace();
 		}
+
 	}
 
 
 	@Override
 	protected void createPages() {
 		addPage(createDiagramArea(), "Feature Diagram");
-
-//		Composite treeArea = new Composite(getContainer(), SWT.NONE);
-//		treeArea.setLayout(new FillLayout());
-//		createTree(treeArea);
-//		addPage(treeArea);
-//		setPageText(1, "Feature tree");
-
 		addPage(createXmlArea(), "feature.xml");
 		addPage(createSettingsArea(), "Settings");
-
 		reloadContent();
 	}
 
@@ -125,17 +111,18 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 		String title = super.getTitle();
 		if(dirty)
 			title = "*" + title;
-		
+
 		return title;
 	}
-	
-	private int pageIndex = 0;
+
+
+
 	private void addPage(Composite area, String title) {
 		addPage(area);
 		setPageText(pageIndex, title);
 		pageIndex++;
 	}
-	
+
 	private void reloadContent() {
 		if(rootFeatureId == null) {
 			MessageDialog.openError(Display.getDefault().getActiveShell(), 
@@ -149,38 +136,56 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 					"Root component not found", "not found: " + rootFeatureId);
 			return;
 		}
-		
+
 		Set<String> excludes = new HashSet<String>();
 		for(String s : excludesList.getItems())
 			excludes.add(s);
-		
+
 		NodeProvider provider = new NodeProvider(rootBundle, excludes);
 		viewer.setContentProvider(provider);
-		viewer.setInput(null);
-		
+
 		set = provider.getFeatureSet();
-		set.addObserver(new Observer() {
+		selection = new FeatureSelection(set);
+		selection.addObserver(new Observer() {
 			@Override
 			public void update(Observable o, Object arg) {
 				viewer.update(set.getFeaturesOfPlugin((String) arg).toArray(), null);
 			}
 		});
-		
-		pluginTable.setInput(set);
-		pluginTable.setChecked(rootFeatureId, true);
-		updatePanelFields();
+
+		styleProvider.setSelection(selection);
+		pluginList.setInput(set, selection);
+		viewer.setInput(null);
+
+		//		pluginTable.setChecked(rootFeatureId, true);
+		//		updatePanelFields();
 	}
 
 
 	private Composite createDiagramArea() {
 		Composite diagramArea = new Composite(getContainer(), SWT.NONE);
 		diagramArea.setLayout(new GridLayout(2, false));
-		createPanel(diagramArea);
+		pluginList = new PluginList(diagramArea);
 		createDiagramArea(diagramArea);
+
+		pluginList.addSelectionListener(new SelectionListener() {
+			@Override
+			public void selectionChanged(List<String> selectedPlugins) {
+				if(selectedPlugins.isEmpty())
+					viewer.setSelection(StructuredSelection.EMPTY);
+				else {
+					List<Object> list = new ArrayList<Object>();
+					for(String pluginId : selectedPlugins)
+						list.addAll(set.getFeaturesOfPlugin(pluginId));
+					
+					viewer.setSelection(new StructuredSelection(list.toArray()));
+				}
+			}
+		});
 		return diagramArea;
 	}
-	
-	
+
+
 	private Composite createXmlArea() {
 		Composite xmlArea = new Composite(getContainer(), SWT.NONE);
 		xmlArea.setLayout(new FillLayout());
@@ -200,215 +205,24 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 	}
 
 
-	private Composite createSettingsArea() {
-		Composite settingsArea = new Composite(getContainer(), SWT.NONE);
-		settingsArea.setLayout(new GridLayout(2, false));
-
-		
-		new Label(settingsArea, SWT.NONE).setText("Feature id");
-		Text featureId = new Text(settingsArea, SWT.BORDER);
-		featureId.setText(featureXml.getId());
-		
-		new Label(settingsArea, SWT.NONE).setText("Feature name");
-		Text featureName = new Text(settingsArea, SWT.BORDER);
-		featureName.setText("??");
-		
-		new Label(settingsArea, SWT.NONE).setText("Feature version");
-		Text featureVersion = new Text(settingsArea, SWT.BORDER);
-		featureVersion.setText(featureXml.getVersion());
-		
-		new Label(settingsArea, SWT.NONE).setText("Root plugin");
-		final Combo pluginsList = new Combo(settingsArea, SWT.NONE);
-		for(String id : Platform.getExtensionRegistry().getNamespaces())
-			pluginsList.add(id);
-		new Label(settingsArea, SWT.NONE).setText("Exclude extension points");
-		excludesList = new org.eclipse.swt.widgets.List(settingsArea, SWT.BORDER);
-		excludesList.setLayoutData(new GridData(300,200));
-		
-		Button removeButton = new Button(settingsArea, SWT.PUSH);
-		removeButton.setText("Remove");
-		removeButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(SelectionEvent e) {
-				String[] selection = excludesList.getSelection();
-				for(String s : selection)
-					excludesList.remove(s);				
-			}
-		});
-		
-//		IExtensionPoint[] extensionPoints = Platform.getExtensionRegistry().getExtensionPoints();
-//		final Combo extPointList = new Combo(settingsArea, SWT.NONE);
-//		for(IExtensionPoint ep : extensionPoints)
-//			extPointList.add(ep.getUniqueIdentifier());
-
-		
-		
-		new Label(settingsArea, SWT.NONE).setText("Layout");
-		Combo layoutCombo = new Combo(settingsArea, SWT.NONE);
-		layoutCombo.add("Tree");
-		layoutCombo.add("Radial");
-		
-		return settingsArea;
-	}
 
 
 
-	private void createPanel(Composite parent) {
-		Composite panel = new Composite(parent, SWT.BORDER);
-		panel.setLayoutData(new GridData(SWT.LEFT, SWT.TOP, false, true));
-		panel.setLayout(new GridLayout(1, false));
-
-		totalLabel = new Label(panel, SWT.NONE);
-		featLabel = new Label(panel, SWT.NONE);
-		featAbsLabel = new Label(panel, SWT.NONE);
-		depthLabel = new Label(panel, SWT.NONE);
-		
-		
-		pluginTable = CheckboxTableViewer.newCheckList(panel, SWT.BORDER | SWT.MULTI | SWT.H_SCROLL
-				| SWT.V_SCROLL | SWT.FULL_SELECTION);
-
-		pluginTable.getControl().setLayoutData(new GridData(SWT.LEFT, SWT.TOP, true, true));
-
-		pluginTable.addCheckStateListener(new ICheckStateListener() {
-
-			@Override
-			public void checkStateChanged(CheckStateChangedEvent event) {
-				System.out.println(event);	
-			}
-		});
-
-
-		TableViewerColumn pluginColumn = new TableViewerColumn(pluginTable, SWT.NONE);
-		{
-			TableColumn c =	pluginColumn.getColumn();
-			c.setWidth(250);
-			c.setResizable(false);
-			c.setMoveable(false);
-			pluginColumn.setLabelProvider(new ColumnLabelProvider() {
-				@Override
-				public String getText(Object element) {
-					return element.toString();
-				}
-			});
-		}
-
-		//		pluginTable.setContentProvider(ArrayContentProvider.getInstance());
-
-		pluginTable.setContentProvider(new IStructuredContentProvider() {
-
-			FeatureSet set;
-			@Override
-			public void inputChanged(Viewer viewer, Object oldInput, Object newInput) {
-				set = (FeatureSet) newInput;
-
-				if(set != null) {
-					set.addObserver(new Observer() {
-
-						@Override
-						public void update(Observable o, Object arg) {
-							boolean check = ((FeatureSet) o).isPluginSelected((String) arg);
-							pluginTable.setChecked((String) arg, check);
-						}
-					});
-				}
-			}
-
-			@Override
-			public Object[] getElements(Object inputElement) {
-				return set.getPlugins().toArray();
-			}
-
-			@Override
-			public void dispose() {
-
-			}
-		});
-		pluginTable.addCheckStateListener(new ICheckStateListener() {
-
-			@Override
-			public void checkStateChanged(CheckStateChangedEvent event) {
-				String plugin = (String) event.getElement();
-				if(event.getChecked())
-					set.selectPlugin(plugin);
-				else
-					set.unselectPlugin(plugin);
-			}
-		});
-		pluginTable.addSelectionChangedListener(new ISelectionChangedListener() {
-
-			@Override
-			public void selectionChanged(SelectionChangedEvent event) {
-				IStructuredSelection sel = (IStructuredSelection) event.getSelection();
-
-				if(!sel.isEmpty()) {
-					List<Object> list = new ArrayList<Object>();
-					Iterator<String> ids = sel.iterator();
-					while(ids.hasNext()) {
-						list.addAll(set.getFeaturesOfPlugin(ids.next()));
-					}
-					IStructuredSelection fsel = new StructuredSelection(list.toArray());
-					viewer.setSelection(fsel);
-				}
-				else {
-					viewer.setSelection(StructuredSelection.EMPTY);
-				}
-			}
-
-		});
-
-//		pluginTable.setInput(set);
-	}
-
-
-	private void addPanelFields(Composite panel) {
-		totalLabel = new Label(panel, SWT.NONE);
-		featLabel = new Label(panel, SWT.NONE);
-		featAbsLabel = new Label(panel, SWT.NONE);
-		depthLabel = new Label(panel, SWT.NONE);
-		
-		
-	}
-	
-	private void updatePanelFields() {
-		totalLabel.setText("Plugins: " + set.getPlugins().size());
-		int concreteFeaturesCount = countConcreteFeatures(set.getAllFeatures());
-		featLabel.setText("Concrete Features: " + concreteFeaturesCount);
-		int abstractFeaturesCount = countAbstractFeatures(set.getAllFeatures());
-		featAbsLabel.setText("Abstract Features: " + abstractFeaturesCount);
-		depthLabel.setText("Depth: " + set.getDepth());
-	}
-
-
-	private int countAbstractFeatures(Set<Feature> set) {
-		int c = 0;
-		for(Feature f : set)
-			if(f.isAbstract())
-				c++;
-		return c;
-	}
-
-
-	private int countConcreteFeatures(Set<Feature> set) {
-		int c = 0;
-		for(Feature f : set)
-			if(!f.isAbstract())
-				c++;
-		return c;
-	}
 
 
 	private void createDiagramArea(Composite parent) {
 
 		viewer = new GraphViewer(parent, SWT.BORDER);
-		viewer.setLabelProvider(new StyleProvider(viewer));
+		styleProvider = new StyleProvider(viewer);
+		viewer.setLabelProvider(styleProvider);
 		viewer.setConnectionStyle(ZestStyles.CONNECTIONS_SOLID);
 		//		viewer.setLayoutAlgorithm(new TreeLayoutAlgorithm(LayoutStyles.NO_LAYOUT_NODE_RESIZING), true);
 		viewer.setLayoutAlgorithm(new RadialLayoutAlgorithm(LayoutStyles.NO_LAYOUT_NODE_RESIZING), true);
 
-//		viewer.setInput(null);
+		//		viewer.setInput(null);
 		viewer.getControl().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
-		
+
 
 		viewer.addDoubleClickListener(new IDoubleClickListener() {
 
@@ -419,18 +233,17 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 					Object obj = sel.getFirstElement();
 					if(obj instanceof Feature) {
 						Feature f = (Feature) obj;
-						if(set.isPluginSelected(f.getPlugin()))
-							set.unselectPlugin(f.getPlugin());
+						if(selection.isPluginSelected(f.getPlugin()))
+							selection.unselectPlugin(f.getPlugin());
 						else {
-							set.selectPlugin(f.getPlugin());
+							selection.selectPlugin(f.getPlugin());
 							Feature parent = f.getParent();
 							while(parent != null) {
-								set.selectPlugin(parent.getPlugin());
+								selection.selectPlugin(parent.getPlugin());
 								parent = parent.getParent();
 							}
 						}
 						dirty = true;
-
 					}
 				}
 			}
@@ -438,8 +251,8 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 
 		addDiagramMenu();
 	}
-	
-	
+
+
 
 	private void addDiagramMenu() {
 		Menu menu = new Menu(viewer.getControl());
@@ -449,11 +262,12 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 		selectRoot.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
-				IStructuredSelection selection = new StructuredSelection(set.getRootPlugin());
-				pluginTable.setSelection(selection);
+				//				IStructuredSelection selection = new StructuredSelection(set.getRootPlugin());
+				//				pluginTable.setSelection(selection);
+				pluginList.select(set.getRootPlugin());
 			}
 		});
-		
+
 		MenuItem setRoot = new MenuItem(menu, SWT.PUSH);
 		setRoot.setText("Set as root plugin");
 		setRoot.addSelectionListener(new SelectionAdapter() {
@@ -503,13 +317,15 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 				Set<String> plugins = new HashSet<String>();
 				for(Feature f : features)
 					plugins.add(f.getPlugin());
-				
-				IStructuredSelection selection = new StructuredSelection(plugins.toArray());
-				pluginTable.setSelection(selection);
+
+				//				IStructuredSelection selection = new StructuredSelection(plugins.toArray());
+				//				pluginTable.setSelection(selection);
+
+				pluginList.select(plugins);
 			}
 		});
 
-		
+
 		MenuItem exclude = new MenuItem(menu, SWT.PUSH);
 		exclude.setText("Exclude");
 		exclude.addSelectionListener(new SelectionAdapter() {
@@ -521,7 +337,7 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 						excludesList.add(f.getExtensionPointId());
 			}
 		});
-		
+
 		MenuItem undo = new MenuItem(menu, SWT.PUSH);
 		undo.setText("Undo");
 
@@ -535,7 +351,7 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 
 		viewer.getControl().setMenu(menu);
 	}
-	
+
 	private Set<Feature> getSelectedFeatures() {
 		IStructuredSelection selection = (IStructuredSelection) viewer.getSelection();
 		Set<Feature> features = new HashSet<Feature>();
@@ -548,15 +364,52 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 	}
 
 
-	//	class PluginItem extends Composite {
-	//
-	//		public PluginItem(Composite parent, String pluginId) {
-	//			super(parent, SWT.NONE);
-	//			setLayout(new RowLayout());
-	//			new Button(this, SWT.CHECK);
-	//			new Label(this, SWT.NONE).setText(pluginId);
-	//		}
-	//	}
+
+	private Composite createSettingsArea() {
+		Composite settingsArea = new Composite(getContainer(), SWT.NONE);
+		settingsArea.setLayout(new GridLayout(2, false));
+
+
+		new Label(settingsArea, SWT.NONE).setText("Feature id");
+		Text featureId = new Text(settingsArea, SWT.BORDER);
+		featureId.setText(featureXml.getId());
+
+		new Label(settingsArea, SWT.NONE).setText("Feature name");
+		Text featureName = new Text(settingsArea, SWT.BORDER);
+		featureName.setText("??");
+
+		new Label(settingsArea, SWT.NONE).setText("Feature version");
+		Text featureVersion = new Text(settingsArea, SWT.BORDER);
+		featureVersion.setText(featureXml.getVersion());
+
+		new Label(settingsArea, SWT.NONE).setText("Root plugin");
+		final Combo pluginsList = new Combo(settingsArea, SWT.NONE);
+		for(String id : Platform.getExtensionRegistry().getNamespaces())
+			pluginsList.add(id);
+		new Label(settingsArea, SWT.NONE).setText("Exclude extension points");
+		excludesList = new org.eclipse.swt.widgets.List(settingsArea, SWT.BORDER);
+		excludesList.setLayoutData(new GridData(300,200));
+
+		Button removeButton = new Button(settingsArea, SWT.PUSH);
+		removeButton.setText("Remove");
+		removeButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				String[] selection = excludesList.getSelection();
+				for(String s : selection)
+					excludesList.remove(s);				
+			}
+		});
+
+
+		new Label(settingsArea, SWT.NONE).setText("Layout");
+		Combo layoutCombo = new Combo(settingsArea, SWT.NONE);
+		layoutCombo.add("Tree");
+		layoutCombo.add("Radial");
+
+		return settingsArea;
+	}
+
 
 	@Override
 	public void doSave(IProgressMonitor monitor) {
@@ -582,90 +435,6 @@ public class FeatureModelEditor extends MultiPageEditorPart {
 	}
 
 
-
-	//	@Override
-	//	public void setFocus() {
-	//		viewer.getGraphControl().setFocus();
-	//	}
-
-
-	private void createTree(Composite parent) {
-
-		final CheckboxTreeViewer tv = new CheckboxTreeViewer(parent);
-		tv.getTree().setLayoutData(new GridData(GridData.FILL_BOTH));
-		tv.setContentProvider(new ITreeContentProvider() {
-
-			@Override
-			public void inputChanged(Viewer viewer, Object oldInput, Object newInput) {
-
-			}
-
-			@Override
-			public void dispose() {
-
-			}
-
-			@Override
-			public boolean hasChildren(Object element) {
-				return element.toString().equals("a");
-			}
-
-			@Override
-			public Object getParent(Object element) {
-				// TODO Auto-generated method stub
-				return null;
-			}
-
-			@Override
-			public Object[] getElements(Object inputElement) {
-				// TODO Auto-generated method stub
-				return new String[] {"a","b"};
-			}
-
-			@Override
-			public Object[] getChildren(Object parentElement) {
-				return new String[] {"c","f"};
-			}
-		});
-		tv.setLabelProvider(new ILabelProvider() {
-
-			@Override
-			public void removeListener(ILabelProviderListener listener) {
-				// TODO Auto-generated method stub
-
-			}
-
-			@Override
-			public boolean isLabelProperty(Object element, String property) {
-				// TODO Auto-generated method stub
-				return false;
-			}
-
-			@Override
-			public void dispose() {
-				// TODO Auto-generated method stub
-
-			}
-
-			@Override
-			public void addListener(ILabelProviderListener listener) {
-				// TODO Auto-generated method stub
-
-			}
-
-			@Override
-			public String getText(Object element) {
-				return element.toString();
-			}
-
-			@Override
-			public Image getImage(Object element) {
-				// TODO Auto-generated method stub
-				return null;
-			}
-		});
-		tv.setInput("root"); 
-	}
 
 	private final class ManifestVisitor implements IResourceVisitor {
 		private static final String BUNDLE_ID_HEADER = "Bundle-SymbolicName:"; 

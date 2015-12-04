@@ -1,27 +1,22 @@
-package pt.iscte.eclipse.featureeditor;
+package pt.iscte.eclipse.featureeditor.model;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Observable;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class FeatureSet extends Observable implements Iterable<Feature> {
+public class FeatureSet implements Iterable<Feature> {
 	private Feature root;
-	private Set<Feature> set;
-	
-	private Set<String> pluginSelection;
+	private final Set<Feature> set;
 	
 	public FeatureSet() {
 		set = new HashSet<Feature>();
-		pluginSelection = new HashSet<String>();
 	}
 	
 	public void setRoot(Feature f) {
 		this.root = f;
-		pluginSelection.add(root.getPlugin());
 	}
 	
 	public Feature getRoot() {
@@ -81,26 +76,6 @@ public class FeatureSet extends Observable implements Iterable<Feature> {
 		return features;
 	}
 
-	public void selectPlugin(String id) {
-		assert getPlugins().contains(id);
-		
-		pluginSelection.add(id);
-		setChanged();
-		notifyObservers(id);
-	}
-	
-	public void unselectPlugin(String id) {
-		assert getPlugins().contains(id);
-		
-		pluginSelection.remove(id);
-		setChanged();
-		notifyObservers(id);
-	}
-
-	public boolean isPluginSelected(String plugin) {
-		return pluginSelection.contains(plugin);
-	}
-
 	public String getRootPlugin() {
 		return root.getPlugin();
 	}
@@ -118,4 +93,21 @@ public class FeatureSet extends Observable implements Iterable<Feature> {
 	public Iterator<Feature> iterator() {
 		return getAllFeatures().iterator();
 	}
+	
+	public int totalAbstractFeatures() {
+		int c = 0;
+		for(Feature f : set)
+			if(f.isAbstract())
+				c++;
+		return c;
+	}
+
+	public int totalConcreteFeatures() {
+		int c = 0;
+		for(Feature f : set)
+			if(!f.isAbstract())
+				c++;
+		return c;
+	}
+
 }

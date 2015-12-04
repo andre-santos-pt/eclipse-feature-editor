@@ -12,6 +12,9 @@ import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.zest.core.viewers.IGraphEntityContentProvider;
 import org.osgi.framework.Bundle;
 
+import pt.iscte.eclipse.featureeditor.model.Feature;
+import pt.iscte.eclipse.featureeditor.model.FeatureSet;
+
 
 public class NodeProvider extends ArrayContentProvider implements IGraphEntityContentProvider {
 	private FeatureSet set;
@@ -44,12 +47,13 @@ public class NodeProvider extends ArrayContentProvider implements IGraphEntityCo
 		IExtensionRegistry reg = Platform.getExtensionRegistry();
 		
 		for(IExtensionPoint ep : reg.getExtensionPoints()) {
-			if(!excludeExtensionPoints.contains(ep.getUniqueIdentifier()) && ep.getContributor().getName().equals(f.getPlugin())) {
+			if(!excludeExtensionPoints.contains(ep.getUniqueIdentifier()) &&
+					ep.getContributor().getName().equals(f.getPlugin())) {
+				
 				Feature absFeat = new Feature(f, ep, set);
 				
 				for(IExtension e : ep.getExtensions()) {
-					Feature child = new Feature(absFeat, e, set);
-//					
+					Feature child = new Feature(absFeat, e, set);	
 					IExtension[] exts = reg.getExtensions(e.getContributor().getName());
 					IExtensionPoint[] extensionPoints = reg.getExtensionPoints(e.getContributor());
 					System.out.println(child + ": " + extensionPoints.length);
@@ -57,16 +61,6 @@ public class NodeProvider extends ArrayContentProvider implements IGraphEntityCo
 					if(exts.length > 0 && exts[0].equals(e)) {
 						buildTree(child, set, excludeExtensionPoints, handled);
 					}
-					
-//					if(!expanded.contains(child.getPlugin())) {
-//						for(IExtension ext : reg.getExtensions(e.getContributor().getName())) {
-//							if(ext.equals(e)) {
-//								expanded.add(child.getPlugin());
-////								buildTree(child, set, excludeExtensionPoints, handled, expanded);
-//								break;
-//							}
-//						}
-//					}
 				}
 			}
 		}

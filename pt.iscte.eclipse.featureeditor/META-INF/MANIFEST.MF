@@ -3,7 +3,6 @@ Bundle-ManifestVersion: 2
 Bundle-Name: Featuremodel
 Bundle-SymbolicName: pt.iscte.eclipse.featureeditor;singleton:=true
 Bundle-Version: 1.0.0.qualifier
-Bundle-Activator: pt.iscte.eclipse.featureeditor.Activator
 Require-Bundle: org.eclipse.ui,
  org.eclipse.core.runtime,
  org.eclipse.zest.core;bundle-version="1.5.0",
@@ -15,4 +14,3 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.pde.core;bundle-version="3.10.1",
  org.eclipselabs.guita.uitrace.swt;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.7
-Bundle-ActivationPolicy: lazy

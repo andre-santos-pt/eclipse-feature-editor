@@ -1,4 +1,4 @@
-package pt.iscte.eclipse.featureeditor;
+package pt.iscte.eclipse.featureeditor.model;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -20,13 +20,11 @@ public class Feature implements Comparable<Feature> {
 	private boolean abstractFeature;
 	private String extensionPointId;
 
-	private FeatureSet set;
 
 	private Feature(Feature parent, FeatureSet set) {
 		this.parent = parent;
 		children = new HashSet<Feature>();
 		abstractFeature = false;
-		this.set = set;
 		set.newFeature(this);
 	}
 
@@ -42,37 +40,27 @@ public class Feature implements Comparable<Feature> {
 		name = bundle.getHeaders().get("Bundle-Name");
 	}
 
-	public Feature(Feature parent, Bundle b, FeatureSet set) {
-		this(parent, set);
-	}
 
-	public Feature(Feature parent, IExtensionPoint e, FeatureSet set) {
+	public Feature(Feature parent, IExtensionPoint extensionPoint, FeatureSet set) {
 		this(parent, set);
-		plugin = e.getContributor().getName();
-		name = e.getLabel();
+		plugin = extensionPoint.getContributor().getName();
+		name = extensionPoint.getLabel();
 		parent.children.add(this);
 		abstractFeature = true;
-		extensionPointId = e.getUniqueIdentifier();
+		extensionPointId = extensionPoint.getUniqueIdentifier();
 		if(name.isEmpty())
 			name = plugin;
-
-//		if(name.length() > 15)
-//			name = name.substring(0, 15) + "...";
 	}
 
-	public Feature(Feature parent, IExtension e, FeatureSet set) {
+	public Feature(Feature parent, IExtension extension, FeatureSet set) {
 		this(parent, set);
-		plugin = e.getContributor().getName();
-		name = e.getLabel();
+		plugin = extension.getContributor().getName();
+		name = extension.getLabel();
 		
 		if(name.isEmpty()) {
 			Bundle bundle = Platform.getBundle(plugin);
 			name = bundle.getHeaders().get("Bundle-Name");
 		}
-
-//		if(name.length() > 15)
-//			name = "..." + name.substring(name.length()-15);
-		
 		parent.children.add(this);
 	}
 
@@ -105,18 +93,12 @@ public class Feature implements Comparable<Feature> {
 		return parent;
 	}
 
-	//	public void setSelected(boolean selected) {
-	//		this.selected = selected;
-	//		setChanged();
-	//		notifyObservers(selected);
-	//	}
-
-	public boolean isSelected() {
-		return set.isPluginSelected(plugin);
-	}
-
 	public Set<Feature> getChildren() {
 		return Collections.unmodifiableSet(children);
+	}
+	
+	public boolean isLeaf() {
+		return children.isEmpty();
 	}
 
 	public int getDepth() {
@@ -139,6 +121,4 @@ public class Feature implements Comparable<Feature> {
 	public String toString() {
 		return name;
 	}
-
-
 }
